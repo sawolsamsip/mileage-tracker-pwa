@@ -241,6 +241,10 @@ function base64UrlEncode(buf: ArrayBuffer | Uint8Array): string {
 }
 
 async function sha256(plain: string): Promise<ArrayBuffer> {
-  const enc = new TextEncoder()
-  return crypto.subtle.digest('SHA-256', enc.encode(plain))
+  if (typeof crypto !== 'undefined' && crypto.subtle) {
+    const enc = new TextEncoder()
+    return crypto.subtle.digest('SHA-256', enc.encode(plain))
+  }
+  const { sha256: sha256Lib } = await import('js-sha256')
+  return sha256Lib.arrayBuffer(plain)
 }
