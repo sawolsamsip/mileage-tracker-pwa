@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { Trip, PendingTrip } from '@/types'
+import { randomUUID } from '@/lib/uuid'
 
 const DB_NAME = 'mileage-tracker-db'
 const DB_VERSION = 2
@@ -59,7 +60,7 @@ export async function getOfflineTrips(): Promise<Trip[]> {
 export async function addPendingTrip(payload: Partial<Trip>): Promise<void> {
   const database = await getDB()
   const item: PendingTrip = {
-    id: crypto.randomUUID(),
+    id: randomUUID(),
     payload,
     createdAt: new Date().toISOString(),
   }

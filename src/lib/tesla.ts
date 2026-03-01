@@ -4,6 +4,8 @@
  * @see https://developer.tesla.com/docs/fleet-api
  */
 
+import { randomUUID } from '@/lib/uuid'
+
 const TESLA_FLEET_ORIGIN = 'https://fleet-api.prd.na.vn.cloud.tesla.com'
 /** In dev we proxy through Vite to avoid CORS; in prod we call Fleet API directly. */
 const TESLA_FLEET_BASE =
@@ -50,7 +52,7 @@ export async function getTeslaAuthUrl(): Promise<{ url: string; codeVerifier: st
     throw new Error('Set VITE_TESLA_CLIENT_ID in .env (mileage-tracker-pwa folder) and restart the dev server.')
   }
   const redirectUri = import.meta.env.VITE_TESLA_REDIRECT_URI ?? `${window.location.origin}/auth/tesla/callback`
-  const state = crypto.randomUUID()
+  const state = randomUUID()
   const codeVerifier = generateCodeVerifier()
   const codeChallenge = base64UrlEncode(await sha256(codeVerifier))
   sessionStorage.setItem('tesla_code_verifier', codeVerifier)

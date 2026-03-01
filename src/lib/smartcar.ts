@@ -3,13 +3,15 @@
  * @see https://smartcar.com/docs
  */
 
+import { randomUUID } from '@/lib/uuid'
+
 const SMARTCAR_AUTH = 'https://connect.smartcar.com/oauth/authorize'
 const SMARTCAR_API = 'https://api.smartcar.com/v2.0'
 
 export function getSmartcarAuthUrl(): string {
   const clientId = import.meta.env.VITE_SMARTCAR_CLIENT_ID ?? ''
   const redirectUri = import.meta.env.VITE_SMARTCAR_REDIRECT_URI ?? `${window.location.origin}/auth/smartcar/callback`
-  const state = crypto.randomUUID()
+  const state = randomUUID()
   sessionStorage.setItem('smartcar_state', state)
   const params = new URLSearchParams({
     response_type: 'code',
