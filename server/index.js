@@ -226,6 +226,26 @@ app.post('/api/tesla/exchange-token', async (req, res) => {
   }
 })
 
+/** Proxy Tesla Fleet API vehicles list (avoids CORS). */
+app.get('/api/tesla/vehicles', async (req, res) => {
+  try {
+    const auth = req.headers.authorization
+    if (!auth || !auth.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing Authorization header' })
+    }
+    const r = await fetch(`${TESLA_FLEET_ORIGIN}/api/1/vehicles`, {
+      headers: { Authorization: auth },
+    })
+    const text = await r.text()
+    if (!r.ok) {
+      return res.status(r.status).json({ error: text || 'Tesla vehicles error' })
+    }
+    res.json(JSON.parse(text))
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 app.post('/api/register', async (req, res) => {
   try {
     const { access_token, refresh_token, expires_at, vehicles } = req.body || {}

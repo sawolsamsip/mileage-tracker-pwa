@@ -142,12 +142,16 @@ export async function refreshTeslaToken(refreshToken: string): Promise<TeslaToke
   return res.json()
 }
 
-/** List vehicles for the authenticated user. */
+/** List vehicles for the authenticated user. In production uses same-origin proxy to avoid CORS. */
 export async function listTeslaVehicles(accessToken: string): Promise<TeslaVehicle[]> {
-  const res = await fetch(`${TESLA_FLEET_BASE}/api/1/vehicles`, {
+  const url = import.meta.env.PROD ? '/api/tesla/vehicles' : `${TESLA_FLEET_BASE}/api/1/vehicles`
+  const res = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
-  if (!res.ok) throw new Error(`Tesla vehicles: ${await res.text()}`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error((err as { error?: string }).error || `Tesla vehicles: ${res.status}`)
+  }
   const data = await res.json()
   return data.response ?? []
 }
