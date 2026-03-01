@@ -3,8 +3,6 @@ import { Bell, Database, Shield, Server, RefreshCw, CheckCircle, XCircle } from 
 import { getServerUrl, setServerUrl, registerWithServer, fetchServerSnapshots, checkServerHealth } from '@/lib/serverSync'
 import { getTeslaTokens, TESLA_VEHICLES_KEY } from '@/pages/AuthTeslaCallback'
 
-const DEFAULT_SERVER_URL = 'http://192.168.1.188:3131'
-
 function loadVehicles(): { id: string; displayName: string }[] {
   try {
     const raw = localStorage.getItem(TESLA_VEHICLES_KEY)
@@ -16,21 +14,17 @@ function loadVehicles(): { id: string; displayName: string }[] {
 }
 
 export default function Settings() {
-  const [serverUrl, setServerUrlState] = useState(DEFAULT_SERVER_URL)
+  const [serverUrl, setServerUrlState] = useState('')
   const [serverOk, setServerOk] = useState<boolean | null>(null)
   const [serverBusy, setServerBusy] = useState(false)
   const [serverMessage, setServerMessage] = useState<string | null>(null)
 
   useEffect(() => {
-    setServerUrlState(getServerUrl() || DEFAULT_SERVER_URL)
+    setServerUrlState(getServerUrl())
   }, [])
 
   useEffect(() => {
     const url = getServerUrl() || serverUrl
-    if (!url.trim()) {
-      setServerOk(null)
-      return
-    }
     checkServerHealth(url).then(setServerOk)
   }, [serverUrl])
 
@@ -42,11 +36,7 @@ export default function Settings() {
   }
 
   const handleRegister = async () => {
-    const url = getServerUrl() || serverUrl
-    if (!url.trim()) {
-      setServerMessage('Enter server URL first.')
-      return
-    }
+    const url = getServerUrl() ?? serverUrl
     const tokens = getTeslaTokens()
     if (!tokens || tokens.expires_at < Date.now()) {
       setServerMessage('Connect Tesla in Vehicles first and ensure token is valid.')
@@ -75,11 +65,7 @@ export default function Settings() {
   }
 
   const handleFetchSnapshots = async () => {
-    const url = getServerUrl() || serverUrl
-    if (!url.trim()) {
-      setServerMessage('Enter server URL first.')
-      return
-    }
+    const url = getServerUrl() ?? serverUrl
     setServerBusy(true)
     setServerMessage(null)
     try {
@@ -102,7 +88,7 @@ export default function Settings() {
           Home server (midnight sync)
         </h3>
         <p className="text-xs text-slate-500 mb-3">
-          Deploy the sync server on Coolify (e.g. 192.168.1.188). It runs Tesla sync at 00:00 daily so you get accurate IRS-ready snapshots without keeping the app open.
+          Leave empty to use the same origin (single-server deploy). Only set a URL if the API runs on a different host (e.g. another server).
         </p>
         <div className="flex flex-col gap-2">
           <input
@@ -110,7 +96,7 @@ export default function Settings() {
             value={serverUrl}
             onChange={(e) => setServerUrlState(e.target.value)}
             onBlur={handleSaveUrl}
-            placeholder="http://192.168.1.188:3131"
+            placeholder="Leave empty to use current origin"
             className="w-full rounded-lg border border-[var(--border)] bg-slate-900/50 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
           />
           <div className="flex flex-wrap gap-2 items-center">

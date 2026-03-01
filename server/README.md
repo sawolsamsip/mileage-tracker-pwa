@@ -1,30 +1,33 @@
 # Mileage Tracker – Midnight Sync Server
 
-집 서버(Coolify 등)에 올려 두면 **매일 자정(00:00)**에 Tesla API를 호출해 주행거리 스냅샷을 저장합니다. PWA에서 이 서버에 토큰을 등록하고, 스냅샷을 가져와서 합치면 IRS용으로 정확한 일별 기록을 유지할 수 있습니다.
+When deployed (e.g. on Coolify), this server runs a **daily cron at 00:00** (server timezone) that calls the Tesla API and stores odometer snapshots. Register tokens from the PWA; the app can then fetch snapshots and merge them for IRS-ready daily records.
 
-## Coolify 배포 (192.168.1.188)
+## Coolify / Docker
 
-1. 이 폴더(`server/`)를 Git 저장소에 넣거나 Coolify에서 소스로 지정합니다.
-2. **Build**: Dockerfile 사용. Context를 `server/`로 두거나, 프로젝트 루트에서 `docker build -f server/Dockerfile server/`로 빌드.
-3. **Environment**:
-   - `TESLA_CLIENT_ID`: PWA에서 쓰는 Tesla OAuth Client ID (동일한 값)
-   - `PORT`: 3131 (기본값)
-   - `DATA_DIR`: `/app/data` (볼륨 마운트 권장)
-4. **Volume**: `/app/data` 를 마운트해서 토큰·스냅샷이 컨테이너 재시작 후에도 유지되도록 합니다.
-5. **Timezone**: 자정 크론은 서버 로컬 시간 기준입니다. 필요하면 컨테이너에 `TZ=Asia/Seoul` 등을 설정하세요.
+- The **root** `Dockerfile` builds the PWA and runs this server in one container (port **3131**). See [DEPLOY.md](../DEPLOY.md).
+- Standalone (this folder only): use `server/Dockerfile`, set **Port** to **3131**.
+
+**Environment**
+
+- `TESLA_CLIENT_ID`: Tesla OAuth Client ID (same as PWA)
+- `PORT`: 3131 (default)
+- `DATA_DIR`: `/app/data` (use a volume)
+- `TZ`: e.g. `America/New_York`, `Asia/Seoul` (for midnight cron)
+
+**Volume**: Mount `/app/data` so tokens and snapshots persist.
 
 ## API
 
 - **POST /api/register**  
-  PWA에서 Tesla 토큰과 차량 목록을 등록합니다.  
+  Register Tesla tokens and vehicle list from the PWA.  
   Body: `{ "access_token", "refresh_token", "expires_at", "vehicles": [ { "id", "displayName" } ] }`
 
 - **GET /api/snapshots**  
-  서버에 쌓인 오도미터 스냅샷 목록을 반환합니다. PWA가 이걸 받아 IndexedDB에 병합합니다.
+  Returns stored odometer snapshots. The PWA merges them into IndexedDB.
 
 - **GET /api/health**  
-  서버 상태 확인.
+  Health check.
 
-## 보안
+## Security
 
-- 집 내부용(192.168.x.x)으로 쓰면 됩니다. 외부에 열 경우 HTTPS와 인증(API 키 등) 추가를 권장합니다.
+- Suitable for home/LAN (e.g. 192.168.x.x). If exposed to the internet, use HTTPS and consider adding API auth.

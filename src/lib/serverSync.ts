@@ -24,6 +24,14 @@ function baseUrl(url: string): string {
   return u || ''
 }
 
+/** Same as serverUrl when set; otherwise current origin (one-server deploy). */
+function effectiveBase(serverUrl: string): string {
+  const base = baseUrl(serverUrl)
+  if (base) return base
+  if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin
+  return ''
+}
+
 /** Register current Tesla tokens and vehicles with the home server so it can run midnight sync. */
 export async function registerWithServer(
   serverUrl: string,
@@ -34,7 +42,7 @@ export async function registerWithServer(
     vehicles: { id: string; displayName: string }[]
   }
 ): Promise<void> {
-  const base = baseUrl(serverUrl)
+  const base = effectiveBase(serverUrl)
   if (!base) throw new Error('Server URL is required')
   const res = await fetch(`${base}/api/register`, {
     method: 'POST',
@@ -49,7 +57,7 @@ export async function registerWithServer(
 
 /** Fetch snapshots from server and merge into IndexedDB (keep min first, max last per id). */
 export async function fetchServerSnapshots(serverUrl: string): Promise<{ merged: number }> {
-  const base = baseUrl(serverUrl)
+  const base = effectiveBase(serverUrl)
   if (!base) throw new Error('Server URL is required')
   const res = await fetch(`${base}/api/snapshots`)
   if (!res.ok) throw new Error(`Server snapshots: ${res.status}`)
@@ -77,7 +85,7 @@ export async function fetchServerSnapshots(serverUrl: string): Promise<{ merged:
 }
 
 export async function checkServerHealth(serverUrl: string): Promise<boolean> {
-  const base = baseUrl(serverUrl)
+  const base = effectiveBase(serverUrl)
   if (!base) return false
   try {
     const res = await fetch(`${base}/api/health`, { signal: AbortSignal.timeout(5000) })

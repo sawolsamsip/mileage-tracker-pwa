@@ -1,20 +1,20 @@
 # Mileage Tracker PWA
 
-**v1.0.0** — IRS용 주행 기록·리포트 + Tesla 연동 PWA. 오프라인 지원.
+**v1.0.1** — IRS-ready mileage logging and reports with Tesla integration. PWA with offline support.
 
-- **요구사항**: Node 18+, Tesla Fleet API용 OAuth Client ID
+- **Requirements**: Node 18+, Tesla Fleet API OAuth Client ID
 
-## 사용 방법
+## Usage
 
-1. **Tesla 연결**  
-   Vehicles → Connect Tesla → Tesla 로그인 후 차량이 등록됩니다.
-2. **일별 스냅샷**  
-   - 앱을 하루에 한 번이라도 열면 그날 오도미터가 자동 기록됩니다.  
-   - **자정 자동 기록**: 설정 → Home server에 서버 URL 입력 후 **Register with server** 한 번 하면, 집 서버가 매일 00:00에 스냅샷을 찍어 둡니다. (서버 배포는 `server/` 참고.)
-3. **서버 스냅샷 가져오기**  
-   설정에서 **Fetch server snapshots**로 서버에 쌓인 기록을 앱으로 가져옵니다. (앱을 열 때도 자동으로 한 번 가져옵니다.)
-4. **리포트**  
-   Reports에서 IRS 스타일 PDF/CSV 내보내기.
+1. **Connect Tesla**  
+   Vehicles → Connect Tesla → Sign in with Tesla; vehicles are registered.
+2. **Daily snapshots**  
+   - Open the app at least once per day to record that day’s odometer automatically.  
+   - **Midnight auto-record**: Deploy the app (e.g. on Coolify); in Settings leave **Server URL** empty and click **Register with server** once. The server will take a snapshot at 00:00 daily (see [DEPLOY.md](DEPLOY.md)).
+3. **Fetch server snapshots**  
+   In Settings use **Fetch server snapshots** to pull server-recorded data into the app (also runs automatically on app load when a server URL is set or same origin).
+4. **Reports**  
+   Export IRS-style PDF/CSV from Reports.
 
 ## Stack
 
@@ -29,12 +29,12 @@
 
 ```bash
 cp .env.example .env
-# .env 에 VITE_TESLA_CLIENT_ID 필수. VITE_TESLA_REDIRECT_URI 는 로컬이면 http://localhost:5174/auth/tesla/callback
+# Set VITE_TESLA_CLIENT_ID in .env. For local, VITE_TESLA_REDIRECT_URI can be http://localhost:5174/auth/tesla/callback
 npm install
 npm run dev
 ```
 
-브라우저에서 http://localhost:5174
+Open http://localhost:5174
 
 ## Build
 
@@ -42,37 +42,37 @@ npm run dev
 npm run build
 ```
 
-Output: `dist/`. Production build can show a PWA/Workbox “early exit” error in some CI/sandbox environments; running `npm run build` on a normal machine or with full permissions usually succeeds.
+Output: `dist/`. Production build may show a PWA/Workbox “early exit” error in some CI/sandbox environments; run `npm run build` on a normal machine or with full permissions if needed.
 
 ## Deploy (Vercel)
 
 1. Connect the repo to Vercel.
-2. Set root directory to `mileage-tracker-pwa` (or run from this folder).
-3. Add env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_TESLA_CLIENT_ID`, `VITE_TESLA_REDIRECT_URI` (e.g. `https://your-app.vercel.app/auth/tesla/callback`).
-4. Deploy. `vercel.json` rewrites all routes to `index.html` for SPA + auth callbacks.
+2. Set root directory to this folder.
+3. Add env: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_TESLA_CLIENT_ID`, `VITE_TESLA_REDIRECT_URI` (e.g. `https://your-app.vercel.app/auth/tesla/callback`).
+4. Deploy. `vercel.json` rewrites routes to `index.html` for SPA and auth callbacks.
 
 ## Env (PWA)
 
 | Variable | Description |
 |----------|-------------|
-| `VITE_TESLA_CLIENT_ID` | Tesla Fleet API OAuth client ID (필수) |
-| `VITE_TESLA_REDIRECT_URI` | 콜백 URL (기본: `{origin}/auth/tesla/callback`) |
-| `VITE_SUPABASE_URL` | (선택) Supabase URL |
-| `VITE_SUPABASE_ANON_KEY` | (선택) Supabase anon key |
-| `VITE_SMARTCAR_CLIENT_ID` | (선택) Smartcar는 토큰 교환용 서버 필요 |
+| `VITE_TESLA_CLIENT_ID` | Tesla Fleet API OAuth client ID (required) |
+| `VITE_TESLA_REDIRECT_URI` | Callback URL (default: `{origin}/auth/tesla/callback`) |
+| `VITE_SUPABASE_URL` | (optional) Supabase URL |
+| `VITE_SUPABASE_ANON_KEY` | (optional) Supabase anon key |
+| `VITE_SMARTCAR_CLIENT_ID` | (optional) Smartcar token exchange requires a backend |
 
-## Midnight sync 서버
+## Deploy (single server)
 
-`server/` 에 있는 소규모 Node 서버를 Coolify 등에 올려 두면, 매일 00:00(서버 타임존)에 Tesla API를 호출해 오도미터 스냅샷을 저장합니다. PWA에서 토큰을 등록해 두면 앱을 열지 않아도 일별 기록이 쌓입니다.
+The root **Dockerfile** builds the PWA and runs one Node server that serves the static app and the midnight snapshot API (port **3131**). One Coolify Application is enough.
 
-- 상세: [server/README.md](server/README.md)
-- Coolify·GitHub 배포: [DEPLOY.md](DEPLOY.md)
+- Coolify & GitHub: [DEPLOY.md](DEPLOY.md)
+- Server API details: [server/README.md](server/README.md)
 
 ## Features
 
-- **Dashboard**: 오늘 주행, 트립 수, 최근 트립.
-- **Trips**: 음성 입력, 수동/자동 트립 목록.
-- **Vehicles**: Tesla OAuth 연결, Smartcar(서버 필요), 수동 차량.
-- **Reports**: IRS 스타일 PDF/CSV, EV 세금 인센티브 요약.
-- **Settings**: 알림, 데이터 백업, **Home server (midnight sync)** 설정.
-- **Offline**: IndexedDB 캐시, PWA 설치 가능.
+- **Dashboard**: Today’s miles, trip count, recent trips.
+- **Trips**: Voice input, manual/auto trip list.
+- **Vehicles**: Tesla OAuth, Smartcar (server required), manual vehicles.
+- **Reports**: IRS-style PDF/CSV, EV tax incentive summary.
+- **Settings**: Notifications, data & backup, **Home server (midnight sync)**.
+- **Offline**: IndexedDB cache, PWA installable.

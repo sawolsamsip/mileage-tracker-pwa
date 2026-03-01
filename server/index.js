@@ -7,9 +7,13 @@ import cors from 'cors'
 import cron from 'node-cron'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
-import { join } from 'path'
+import { join, resolve } from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url))
 
 const PORT = Number(process.env.PORT) || 3131
+const STATIC_DIR = process.env.STATIC_DIR ? resolve(__dirname, process.env.STATIC_DIR) : null
 const DATA_DIR = process.env.DATA_DIR || join(process.cwd(), 'data')
 const STATE_FILE = join(DATA_DIR, 'state.json')
 const SNAPSHOTS_FILE = join(DATA_DIR, 'snapshots.json')
@@ -205,6 +209,14 @@ app.get('/api/snapshots', async (_, res) => {
     res.status(500).json({ error: e.message })
   }
 })
+
+if (STATIC_DIR) {
+  app.use(express.static(STATIC_DIR))
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) return next()
+    res.sendFile(join(STATIC_DIR, 'index.html'))
+  })
+}
 
 await ensureDataDir()
 
