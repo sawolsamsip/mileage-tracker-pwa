@@ -80,7 +80,7 @@ export default function Vehicles() {
 
   const connectTesla = async () => {
     if (!isTeslaOAuthConfigured()) {
-      setTeslaConfigError('Set VITE_TESLA_CLIENT_ID in .env (in the mileage-tracker-pwa folder). Get your Client ID from Tesla Developer after registering an app. Restart the dev server after editing .env.')
+      setTeslaConfigError('Set TESLA_CLIENT_ID in the server environment (e.g. Coolify Environment), or VITE_TESLA_CLIENT_ID in .env for local dev. Get your Client ID from Tesla Developer.')
       return
     }
     setTeslaConfigError(null)

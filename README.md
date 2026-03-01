@@ -1,6 +1,6 @@
 # Mileage Tracker PWA
 
-**v1.0.7** — IRS-ready mileage logging and reports with Tesla integration. PWA with offline support.
+**v1.0.8** — IRS-ready mileage logging and reports with Tesla integration. PWA with offline support.
 
 - **Requirements**: Node 18+, Tesla Fleet API OAuth Client ID
 

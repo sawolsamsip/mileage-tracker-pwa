@@ -40,17 +40,26 @@ export interface VehicleDataResponse {
   }
 }
 
-/** Whether Tesla OAuth is configured (client_id set). */
+/** Whether Tesla OAuth is configured. In prod server has TESLA_CLIENT_ID; in dev we check .env. */
 export function isTeslaOAuthConfigured(): boolean {
+  if (import.meta.env.PROD) return true
   return Boolean((import.meta.env.VITE_TESLA_CLIENT_ID ?? '').trim())
 }
 
+const CLIENT_ID_ERR =
+  'Set TESLA_CLIENT_ID in the server environment (e.g. Coolify Environment), or VITE_TESLA_CLIENT_ID in .env for local dev.'
+
 /** Build Tesla Fleet API auth URL (PKCE). Store code_verifier in sessionStorage for callback. Throws if client_id not set. */
 export async function getTeslaAuthUrl(): Promise<{ url: string; codeVerifier: string }> {
-  const clientId = (import.meta.env.VITE_TESLA_CLIENT_ID ?? '').trim()
-  if (!clientId) {
-    throw new Error('Set VITE_TESLA_CLIENT_ID in .env (mileage-tracker-pwa folder) and restart the dev server.')
+  let clientId: string
+  if (import.meta.env.PROD) {
+    const configRes = await fetch('/api/tesla/config')
+    const config = (await configRes.json().catch(() => ({}))) as { clientId?: string }
+    clientId = (config.clientId ?? '').trim()
+  } else {
+    clientId = (import.meta.env.VITE_TESLA_CLIENT_ID ?? '').trim()
   }
+  if (!clientId) throw new Error(CLIENT_ID_ERR)
   const redirectUri = (import.meta.env.VITE_TESLA_REDIRECT_URI ?? '').trim() || `${window.location.origin}/auth/tesla/callback`
   const state = randomUUID()
   const codeVerifier = generateCodeVerifier()
@@ -124,10 +133,19 @@ export async function exchangeTeslaCode(code: string): Promise<TeslaTokens> {
   return res.json()
 }
 
-/** Refresh Tesla access token. */
+/** Refresh Tesla access token. In production uses same-origin proxy (server uses TESLA_CLIENT_ID). */
 export async function refreshTeslaToken(refreshToken: string): Promise<TeslaTokens> {
+  if (import.meta.env.PROD) {
+    const res = await fetch('/api/tesla/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error((data as { error?: string }).error || `Token refresh: ${res.status}`)
+    return data as TeslaTokens
+  }
   const clientId = import.meta.env.VITE_TESLA_CLIENT_ID ?? ''
-  const audience = TESLA_FLEET_ORIGIN
   const res = await fetch(TESLA_TOKEN_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -135,7 +153,7 @@ export async function refreshTeslaToken(refreshToken: string): Promise<TeslaToke
       grant_type: 'refresh_token',
       client_id: clientId,
       refresh_token: refreshToken,
-      audience,
+      audience: TESLA_FLEET_ORIGIN,
     }),
   })
   if (!res.ok) throw new Error(`Tesla refresh error: ${await res.text()}`)

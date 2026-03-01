@@ -47,11 +47,9 @@ The **PWA and midnight snapshot API** run in one container. Create **one Applica
    - **Base Directory**: `/` (root)
    - **Port**: **3131**
    - **Is it a static site?**: Unchecked
-3. **Build arguments** (used at Docker build time)
-   - `VITE_TESLA_CLIENT_ID` = your Tesla OAuth Client ID
-   - `VITE_TESLA_REDIRECT_URI` = `https://your-deployed-domain/auth/tesla/callback` (use the URL you actually access)
-4. **Environment** (runtime)
-   - `TESLA_CLIENT_ID` = same Tesla Client ID (for midnight sync)
+3. **Build arguments** (optional). The app reads Tesla Client ID from the server at runtime, so you do **not** need `VITE_TESLA_CLIENT_ID` in build. Optionally set `VITE_TESLA_REDIRECT_URI` if you want to pin the callback URL.
+4. **Environment** (runtime, required)
+   - `TESLA_CLIENT_ID` = your Tesla OAuth Client ID (used for OAuth, token exchange, midnight sync)
    - `TZ` = `America/New_York` / `America/Los_Angeles` / `Asia/Seoul` etc. (timezone for midnight cron)
 5. **Volume**
    - Container path: `/app/data`  
@@ -68,7 +66,7 @@ Open the deployed URL (e.g. `http://192.168.1.188:3131`). Leave **Server URL** e
 |------|--------|
 | 1 | Push to GitHub |
 | 2 | In Coolify, create **one Application** from this repo: Build Pack = Dockerfile, Port = **3131** |
-| 3 | Set build args: `VITE_TESLA_CLIENT_ID`, `VITE_TESLA_REDIRECT_URI`; env: `TESLA_CLIENT_ID`, `TZ`; volume: `/app/data` |
+| 3 | Set env: `TESLA_CLIENT_ID`, `TZ`; volume: `/app/data`. Build args optional. |
 | 4 | In app Settings, leave server URL empty and click **Register with server** |
 
 One server serves the web app and midnight snapshots.

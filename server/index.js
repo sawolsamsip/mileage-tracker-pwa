@@ -181,6 +181,16 @@ app.use(express.json())
 
 app.get('/api/health', (_, res) => res.json({ ok: true, service: 'mileage-midnight-sync' }))
 
+/** Public config: client ID for OAuth (same value as TESLA_CLIENT_ID). */
+app.get('/api/tesla/config', (_, res) => {
+  try {
+    const clientId = (process.env.TESLA_CLIENT_ID ?? '').trim()
+    res.json({ clientId })
+  } catch {
+    res.json({ clientId: '' })
+  }
+})
+
 /** Proxy Tesla OAuth token exchange (avoids CORS when callback runs in browser). */
 app.post('/api/tesla/exchange-token', async (req, res) => {
   try {
@@ -219,6 +229,35 @@ app.post('/api/tesla/exchange-token', async (req, res) => {
     const text = await tokenRes.text()
     if (!tokenRes.ok) {
       return res.status(tokenRes.status).json({ error: text || 'Tesla token error' })
+    }
+    res.json(JSON.parse(text))
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+/** Proxy Tesla token refresh (server uses TESLA_CLIENT_ID). */
+app.post('/api/tesla/refresh', async (req, res) => {
+  try {
+    const { refresh_token } = req.body || {}
+    if (!refresh_token) {
+      return res.status(400).json({ error: 'Need refresh_token' })
+    }
+    const clientId = getClientId()
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: clientId,
+      refresh_token,
+      audience: TESLA_FLEET_ORIGIN,
+    })
+    const r = await fetch(TESLA_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    })
+    const text = await r.text()
+    if (!r.ok) {
+      return res.status(r.status).json({ error: text || 'Tesla refresh error' })
     }
     res.json(JSON.parse(text))
   } catch (e) {
