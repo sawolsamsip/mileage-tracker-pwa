@@ -74,21 +74,31 @@ export async function getTeslaAuthUrl(): Promise<{ url: string; codeVerifier: st
   }
 }
 
-/** Exchange auth code for tokens. Tries fleet-auth first; on 400 falls back to auth.tesla.com (no audience). */
+/** Exchange auth code for tokens. In production uses same-origin proxy to avoid CORS. */
 export async function exchangeTeslaCode(code: string): Promise<TeslaTokens> {
-  const clientId = import.meta.env.VITE_TESLA_CLIENT_ID ?? ''
   const redirectUri = (import.meta.env.VITE_TESLA_REDIRECT_URI ?? '').trim() || `${window.location.origin}/auth/tesla/callback`
   const codeVerifier = sessionStorage.getItem('tesla_code_verifier') ?? localStorage.getItem('tesla_code_verifier')
   if (!codeVerifier) throw new Error('Missing code_verifier')
-  const audience = TESLA_FLEET_ORIGIN
 
+  if (import.meta.env.PROD) {
+    const res = await fetch('/api/tesla/exchange-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, code_verifier: codeVerifier, redirect_uri: redirectUri }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error((data as { error?: string }).error || `Token exchange: ${res.status}`)
+    return data as TeslaTokens
+  }
+
+  const clientId = import.meta.env.VITE_TESLA_CLIENT_ID ?? ''
   const bodyFleet = new URLSearchParams({
     grant_type: 'authorization_code',
     client_id: clientId,
     redirect_uri: redirectUri,
     code,
     code_verifier: codeVerifier,
-    audience,
+    audience: TESLA_FLEET_ORIGIN,
   })
   let res = await fetch(TESLA_TOKEN_URL, {
     method: 'POST',
@@ -103,10 +113,7 @@ export async function exchangeTeslaCode(code: string): Promise<TeslaTokens> {
       code,
       code_verifier: codeVerifier,
     })
-    const authUrl =
-      typeof import.meta !== 'undefined' && import.meta.env?.DEV
-        ? '/api/tesla-auth-consumer/oauth2/v3/token'
-        : 'https://auth.tesla.com/oauth2/v3/token'
+    const authUrl = '/api/tesla-auth-consumer/oauth2/v3/token'
     res = await fetch(authUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

@@ -73,7 +73,7 @@ export default function AuthTeslaCallback() {
         const msg = err.message || 'Failed to connect Tesla account.'
         const friendly =
           msg === 'Load failed' || msg.includes('Failed to fetch') || msg.includes('Could not connect')
-            ? 'Network request failed. Make sure the dev server is running and try again.'
+            ? 'Network request failed. Check your connection and try again.'
             : msg
         setMessage(friendly)
       })

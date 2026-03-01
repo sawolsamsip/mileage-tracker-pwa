@@ -181,6 +181,51 @@ app.use(express.json())
 
 app.get('/api/health', (_, res) => res.json({ ok: true, service: 'mileage-midnight-sync' }))
 
+/** Proxy Tesla OAuth token exchange (avoids CORS when callback runs in browser). */
+app.post('/api/tesla/exchange-token', async (req, res) => {
+  try {
+    const { code, code_verifier, redirect_uri } = req.body || {}
+    if (!code || !code_verifier || !redirect_uri) {
+      return res.status(400).json({ error: 'Need code, code_verifier, redirect_uri' })
+    }
+    const clientId = getClientId()
+    const bodyFleet = new URLSearchParams({
+      grant_type: 'authorization_code',
+      client_id: clientId,
+      redirect_uri: redirect_uri,
+      code,
+      code_verifier: code_verifier,
+      audience: TESLA_FLEET_ORIGIN,
+    })
+    let tokenRes = await fetch(TESLA_TOKEN_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: bodyFleet,
+    })
+    if (tokenRes.status === 400) {
+      const bodyAuth = new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: clientId,
+        redirect_uri: redirect_uri,
+        code,
+        code_verifier: code_verifier,
+      })
+      tokenRes = await fetch('https://auth.tesla.com/oauth2/v3/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: bodyAuth,
+      })
+    }
+    const text = await tokenRes.text()
+    if (!tokenRes.ok) {
+      return res.status(tokenRes.status).json({ error: text || 'Tesla token error' })
+    }
+    res.json(JSON.parse(text))
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 app.post('/api/register', async (req, res) => {
   try {
     const { access_token, refresh_token, expires_at, vehicles } = req.body || {}
