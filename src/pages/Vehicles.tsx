@@ -118,10 +118,10 @@ export default function Vehicles() {
         setSyncStatus(anyTimeout ? `Odometer synced for ${ok} vehicle(s). Some timed out (try again for the rest).` : `Odometer synced for ${ok} vehicle(s). Check Trips.`)
       } else if (anyTimeout) {
         setSyncStatus('Vehicles are not responding (likely sleeping). Wait a few minutes and try Sync again, or add trips manually in Trips.')
-      } else if (err?.includes('No odometer')) {
+      } else if (err?.error?.includes('No odometer')) {
         setSyncStatus('Odometer not available from Tesla for this account/region. You can still add trips manually in Trips.')
       } else if (err) {
-        setSyncStatus(`${err} Try again later.`)
+        setSyncStatus(`${err.error ?? err.vehicleId} Try again later.`)
       } else {
         setSyncStatus('Odometer synced for 0 vehicle(s). Check Trips or add trips manually.')
       }
