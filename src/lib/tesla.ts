@@ -51,7 +51,7 @@ export async function getTeslaAuthUrl(): Promise<{ url: string; codeVerifier: st
   if (!clientId) {
     throw new Error('Set VITE_TESLA_CLIENT_ID in .env (mileage-tracker-pwa folder) and restart the dev server.')
   }
-  const redirectUri = import.meta.env.VITE_TESLA_REDIRECT_URI ?? `${window.location.origin}/auth/tesla/callback`
+  const redirectUri = (import.meta.env.VITE_TESLA_REDIRECT_URI ?? '').trim() || `${window.location.origin}/auth/tesla/callback`
   const state = randomUUID()
   const codeVerifier = generateCodeVerifier()
   const codeChallenge = base64UrlEncode(await sha256(codeVerifier))
@@ -77,7 +77,7 @@ export async function getTeslaAuthUrl(): Promise<{ url: string; codeVerifier: st
 /** Exchange auth code for tokens. Tries fleet-auth first; on 400 falls back to auth.tesla.com (no audience). */
 export async function exchangeTeslaCode(code: string): Promise<TeslaTokens> {
   const clientId = import.meta.env.VITE_TESLA_CLIENT_ID ?? ''
-  const redirectUri = import.meta.env.VITE_TESLA_REDIRECT_URI ?? `${window.location.origin}/auth/tesla/callback`
+  const redirectUri = (import.meta.env.VITE_TESLA_REDIRECT_URI ?? '').trim() || `${window.location.origin}/auth/tesla/callback`
   const codeVerifier = sessionStorage.getItem('tesla_code_verifier') ?? localStorage.getItem('tesla_code_verifier')
   if (!codeVerifier) throw new Error('Missing code_verifier')
   const audience = TESLA_FLEET_ORIGIN
