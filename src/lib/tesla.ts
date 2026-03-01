@@ -211,6 +211,14 @@ function extractOdometerFromVehicleData(data: unknown): number | undefined {
 /** Result from getTeslaVehicleData; timedOut means Tesla returned 408 (vehicle sleeping). */
 export type TeslaVehicleDataResult = VehicleDataResponse['response'] & { timedOut?: boolean }
 
+/** Base URL for vehicle API. Use same-origin proxy whenever Tesla Fleet would be cross-origin (avoids CORS). */
+function vehicleDataBase(vehicleId: string): string {
+  const proxyPath = `/api/tesla/vehicles/${vehicleId}`
+  if (typeof window === 'undefined') return `${TESLA_FLEET_BASE}/api/1/vehicles/${vehicleId}`
+  if (window.location.origin !== new URL(TESLA_FLEET_ORIGIN).origin) return proxyPath
+  return `${TESLA_FLEET_BASE}/api/1/vehicles/${vehicleId}`
+}
+
 /** Get vehicle data (odometer, drive state). Handles 408 (timeout), skips telemetry on 404 (often unavailable). */
 export async function getTeslaVehicleData(
   accessToken: string,
@@ -220,6 +228,7 @@ export async function getTeslaVehicleData(
   let odometer: number | undefined
   let drive_state: unknown
   let timedOut = false
+  const base = vehicleDataBase(vehicleId)
 
   const doVehicleData = async (url: string): Promise<{ ok: boolean; data: unknown; timedOut?: boolean }> => {
     const r = await fetch(url, { headers })
@@ -228,9 +237,7 @@ export async function getTeslaVehicleData(
     return { ok: true, data: await r.json() as unknown }
   }
 
-  let res = await doVehicleData(
-    `${TESLA_FLEET_BASE}/api/1/vehicles/${vehicleId}/vehicle_data?endpoints=drive_state,vehicle_state`
-  )
+  let res = await doVehicleData(`${base}/vehicle_data?endpoints=drive_state,vehicle_state`)
   if (res.timedOut) timedOut = true
   if (res.ok && res.data) {
     odometer = extractOdometerFromVehicleData(res.data)
@@ -239,7 +246,7 @@ export async function getTeslaVehicleData(
   }
 
   if (odometer == null && res.ok && !telemetry404Seen) {
-    const telemetryRes = await fetch(`${TESLA_FLEET_BASE}/api/1/vehicles/${vehicleId}/telemetry`, { headers })
+    const telemetryRes = await fetch(`${base}/telemetry`, { headers })
     if (telemetryRes.status === 404) telemetry404Seen = true
     else if (telemetryRes.ok) {
       const telemetry = await telemetryRes.json() as { response?: { odometer?: number } }
@@ -249,7 +256,7 @@ export async function getTeslaVehicleData(
   }
 
   if (odometer == null && res.ok) {
-    res = await doVehicleData(`${TESLA_FLEET_BASE}/api/1/vehicles/${vehicleId}/vehicle_data`)
+    res = await doVehicleData(`${base}/vehicle_data`)
     if (res.ok && res.data) odometer = extractOdometerFromVehicleData(res.data)
   }
 

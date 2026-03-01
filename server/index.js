@@ -285,6 +285,52 @@ app.get('/api/tesla/vehicles', async (req, res) => {
   }
 })
 
+/** Proxy Tesla Fleet API vehicle_data (odometer etc., avoids CORS). */
+app.get('/api/tesla/vehicles/:id/vehicle_data', async (req, res) => {
+  try {
+    const auth = req.headers.authorization
+    if (!auth || !auth.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing Authorization header' })
+    }
+    const { id } = req.params
+    const qs = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''
+    const r = await fetch(`${TESLA_FLEET_ORIGIN}/api/1/vehicles/${id}/vehicle_data${qs}`, {
+      headers: { Authorization: auth },
+    })
+    const text = await r.text()
+    if (r.status === 408) {
+      return res.status(408).json({ timedOut: true })
+    }
+    if (!r.ok) {
+      return res.status(r.status).send(text || 'Tesla vehicle_data error')
+    }
+    res.setHeader('Content-Type', 'application/json').send(text)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+/** Proxy Tesla Fleet API telemetry (optional odometer fallback, avoids CORS). */
+app.get('/api/tesla/vehicles/:id/telemetry', async (req, res) => {
+  try {
+    const auth = req.headers.authorization
+    if (!auth || !auth.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'Missing Authorization header' })
+    }
+    const { id } = req.params
+    const r = await fetch(`${TESLA_FLEET_ORIGIN}/api/1/vehicles/${id}/telemetry`, {
+      headers: { Authorization: auth },
+    })
+    const text = await r.text()
+    if (!r.ok) {
+      return res.status(r.status).send(text || 'Tesla telemetry error')
+    }
+    res.setHeader('Content-Type', 'application/json').send(text)
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
 app.post('/api/register', async (req, res) => {
   try {
     const { access_token, refresh_token, expires_at, vehicles } = req.body || {}
