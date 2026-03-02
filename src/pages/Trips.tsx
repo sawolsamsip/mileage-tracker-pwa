@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { format } from 'date-fns'
-import { Route, Mic, PlusCircle } from 'lucide-react'
-import { useVoiceInput } from '@/hooks/useVoiceInput'
+import { Route, PlusCircle } from 'lucide-react'
 import { useAllTrips } from '@/hooks/useAllTrips'
 import { saveTripOffline } from '@/lib/db'
 import { randomUUID } from '@/lib/uuid'
@@ -11,8 +10,6 @@ const USER_ID_LOCAL = 'local'
 const MANUAL_VEHICLE_ID = 'manual'
 
 export default function Trips() {
-  const [purpose, setPurpose] = useState<string>('business')
-  const [notes, setNotes] = useState('')
   const [showAddForm, setShowAddForm] = useState(false)
   const [addDate, setAddDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
   const [addMiles, setAddMiles] = useState('')
@@ -21,11 +18,6 @@ export default function Trips() {
   const [addBusy, setAddBusy] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
   const { trips, loading, refresh } = useAllTrips()
-
-  const { start: startVoice } = useVoiceInput((p, n) => {
-    setPurpose(p)
-    setNotes(n)
-  })
 
   const handleAddTrip = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -74,23 +66,6 @@ export default function Trips() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-slate-100">Trips</h2>
-
-      <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
-        <h3 className="mb-3 text-sm font-medium text-slate-300">Voice: set purpose</h3>
-        <p className="mb-2 text-xs text-slate-500">Say e.g. &quot;business client meeting&quot; or &quot;personal errands&quot;</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent)]/20 px-3 py-2 text-sm text-[var(--accent)]"
-            onClick={startVoice}
-          >
-            <Mic className="h-4 w-4" />
-            Start voice
-          </button>
-          {purpose && <span className="text-sm text-slate-400">Purpose: {purpose}</span>}
-          {notes && <span className="text-sm text-slate-400">Notes: {notes}</span>}
-        </div>
-      </section>
 
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
         <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-300">
