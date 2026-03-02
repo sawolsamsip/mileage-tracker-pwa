@@ -5,6 +5,7 @@
 import express from 'express'
 import cors from 'cors'
 import cron from 'node-cron'
+import webPush from 'web-push'
 import { readFile, writeFile, mkdir } from 'fs/promises'
 import { existsSync } from 'fs'
 import { join, resolve } from 'path'
@@ -17,6 +18,7 @@ const STATIC_DIR = process.env.STATIC_DIR ? resolve(__dirname, process.env.STATI
 const DATA_DIR = process.env.DATA_DIR || join(process.cwd(), 'data')
 const STATE_FILE = join(DATA_DIR, 'state.json')
 const SNAPSHOTS_FILE = join(DATA_DIR, 'snapshots.json')
+const PUSH_SUBSCRIPTIONS_FILE = join(DATA_DIR, 'push-subscriptions.json')
 
 const TESLA_FLEET_ORIGIN = 'https://fleet-api.prd.na.vn.cloud.tesla.com'
 const TESLA_TOKEN_URL = 'https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token'
@@ -68,6 +70,22 @@ async function loadSnapshots() {
 async function saveSnapshots(snapshots) {
   await ensureDataDir()
   await writeFile(SNAPSHOTS_FILE, JSON.stringify(snapshots, null, 2), 'utf8')
+}
+
+async function loadPushSubscriptions() {
+  await ensureDataDir()
+  if (!existsSync(PUSH_SUBSCRIPTIONS_FILE)) return []
+  const raw = await readFile(PUSH_SUBSCRIPTIONS_FILE, 'utf8')
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return []
+  }
+}
+
+async function savePushSubscriptions(subs) {
+  await ensureDataDir()
+  await writeFile(PUSH_SUBSCRIPTIONS_FILE, JSON.stringify(subs, null, 2), 'utf8')
 }
 
 function getClientId() {
@@ -360,6 +378,70 @@ app.get('/api/snapshots', async (_, res) => {
   }
 })
 
+const VAPID_PUBLIC = (process.env.VAPID_PUBLIC_KEY ?? '').trim()
+const VAPID_PRIVATE = (process.env.VAPID_PRIVATE_KEY ?? '').trim()
+if (VAPID_PUBLIC && VAPID_PRIVATE) {
+  webPush.setVapidDetails('mailto:support@mongoori.com', VAPID_PUBLIC, VAPID_PRIVATE)
+}
+
+app.get('/api/push-config', (_, res) => {
+  if (!VAPID_PUBLIC) return res.status(503).json({ error: 'Push not configured (missing VAPID_PUBLIC_KEY)' })
+  res.json({ vapidPublicKey: VAPID_PUBLIC })
+})
+
+app.post('/api/push-subscribe', express.json(), async (req, res) => {
+  try {
+    if (!VAPID_PUBLIC || !VAPID_PRIVATE) {
+      return res.status(503).json({ error: 'Push not configured' })
+    }
+    const subscription = req.body?.subscription
+    if (!subscription || !subscription.endpoint) {
+      return res.status(400).json({ error: 'Need subscription object with endpoint' })
+    }
+    const subs = await loadPushSubscriptions()
+    const key = subscription.endpoint
+    if (!subs.find((s) => s.endpoint === key)) {
+      subs.push(subscription)
+      await savePushSubscriptions(subs)
+    }
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+app.post('/api/push-unsubscribe', express.json(), async (req, res) => {
+  try {
+    const endpoint = req.body?.endpoint
+    if (!endpoint) return res.status(400).json({ error: 'Need endpoint' })
+    const subs = (await loadPushSubscriptions()).filter((s) => s.endpoint !== endpoint)
+    await savePushSubscriptions(subs)
+    res.json({ ok: true })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
+})
+
+async function sendPushToAll(payload) {
+  if (!VAPID_PRIVATE) return
+  const subs = await loadPushSubscriptions()
+  const body = JSON.stringify(payload)
+  const results = await Promise.allSettled(
+    subs.map((sub) => webPush.sendNotification(sub, body))
+  )
+  const failed = results.filter((r) => r.status === 'rejected')
+  if (failed.length > 0) {
+    const toRemove = failed
+      .map((r, i) => (r.status === 'rejected' && r.reason?.statusCode === 410 ? subs[i] : null))
+      .filter(Boolean)
+    if (toRemove.length > 0) {
+      const endpoints = new Set(toRemove.map((s) => s.endpoint))
+      const kept = (await loadPushSubscriptions()).filter((s) => !endpoints.has(s.endpoint))
+      await savePushSubscriptions(kept)
+    }
+  }
+}
+
 if (STATIC_DIR) {
   app.use(express.static(STATIC_DIR))
   app.get('*', (req, res, next) => {
@@ -377,6 +459,19 @@ cron.schedule('0 0 * * *', async () => {
     await runMidnightSync()
   } catch (e) {
     console.error('[cron] Midnight sync failed:', e)
+  }
+})
+
+// Weekly summary push: Monday 8:00
+cron.schedule('0 8 * * 1', async () => {
+  try {
+    await sendPushToAll({
+      title: 'Mileage Tracker Pro',
+      body: 'Your weekly mileage summary is ready. Open the app to view Reports.',
+      url: '/reports',
+    })
+  } catch (e) {
+    console.error('[cron] Weekly push failed:', e)
   }
 })
 

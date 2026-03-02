@@ -10,16 +10,12 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,woff2}'],
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,ico,woff2,svg}'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
-            handler: 'NetworkFirst',
-            options: { cacheName: 'supabase', expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 } },
-          },
-        ],
       },
       manifest: {
         name: 'Mileage Tracker Pro',
@@ -41,6 +37,8 @@ export default defineConfig({
   resolve: { alias: { '@': path.resolve(__dirname, 'src') } },
   server: {
     port: 5174,
+    host: true,
+    allowedHosts: ['mongoori.com', 'www.mongoori.com', 'localhost', '127.0.0.1'],
     proxy: {
       '/api/tesla-fleet': {
         target: 'https://fleet-api.prd.na.vn.cloud.tesla.com',

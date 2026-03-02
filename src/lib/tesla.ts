@@ -174,7 +174,6 @@ export async function listTeslaVehicles(accessToken: string): Promise<TeslaVehic
   return data.response ?? []
 }
 
-let telemetry404Seen = false
 
 /** Odometer above this is treated as wrong unit or bad data. */
 export const MAX_REASONABLE_ODOMETER_MILES = 2_000_000
@@ -219,7 +218,7 @@ function vehicleDataBase(vehicleId: string): string {
   return `${TESLA_FLEET_BASE}/api/1/vehicles/${vehicleId}`
 }
 
-/** Get vehicle data (odometer, drive state). Handles 408 (timeout), skips telemetry on 404 (often unavailable). */
+/** Get vehicle data (odometer, drive state). Handles 408 (timeout). Uses vehicle_data only (telemetry often 404). */
 export async function getTeslaVehicleData(
   accessToken: string,
   vehicleId: string
@@ -243,16 +242,6 @@ export async function getTeslaVehicleData(
     odometer = extractOdometerFromVehicleData(res.data)
     const raw = (res.data as Record<string, unknown>)?.response as Record<string, unknown> | undefined
     if (raw) drive_state = raw.drive_state ?? raw.driveState
-  }
-
-  if (odometer == null && res.ok && !telemetry404Seen) {
-    const telemetryRes = await fetch(`${base}/telemetry`, { headers })
-    if (telemetryRes.status === 404) telemetry404Seen = true
-    else if (telemetryRes.ok) {
-      const telemetry = await telemetryRes.json() as { response?: { odometer?: number } }
-      const odo = telemetry?.response?.odometer
-      if (typeof odo === 'number') odometer = toMiles(odo)
-    }
   }
 
   if (odometer == null && res.ok) {
