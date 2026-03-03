@@ -38,10 +38,11 @@ export async function recordOdometerSnapshot(
   })
 }
 
-/** Fetch current odometer from Tesla for each vehicle and save as today's snapshot. */
+/** Fetch current odometer from Tesla for each vehicle and save as today's snapshot. Optional onProgress for UI. */
 export async function syncOdometerFromTesla(
   accessToken: string,
-  vehicles: { id: string; displayName: string }[]
+  vehicles: { id: string; displayName: string }[],
+  onProgress?: (index: number, total: number) => void
 ): Promise<{ vehicleId: string; odometer?: number; error?: string; timedOut?: boolean }[]> {
   const today = dateOnly(new Date())
   const results: { vehicleId: string; odometer?: number; error?: string; timedOut?: boolean }[] = []
@@ -65,6 +66,7 @@ export async function syncOdometerFromTesla(
     } catch (e) {
       results.push({ vehicleId: v.id, error: (e as Error).message })
     }
+    onProgress?.(i + 1, vehicles.length)
   }
   return results
 }

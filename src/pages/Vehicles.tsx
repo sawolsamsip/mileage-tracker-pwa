@@ -29,6 +29,7 @@ export default function Vehicles() {
   const [teslaConfigError, setTeslaConfigError] = useState<string | null>(null)
   const [syncStatus, setSyncStatus] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
+  const [syncProgress, setSyncProgress] = useState<{ current: number; total: number } | null>(null)
 
   const [showTeslaSuccess, setShowTeslaSuccess] = useState(false)
   const justConnected = searchParams.get('tesla') === 'connected'
@@ -108,9 +109,15 @@ export default function Vehicles() {
       return
     }
     setSyncing(true)
-    setSyncStatus(null)
+    setSyncProgress({ current: 0, total: list.length })
+    setSyncStatus(
+      `Syncing 0 / ${list.length} vehicle(s)… This can take 10–30 seconds depending on Tesla response time.`
+    )
     try {
-      const results = await syncOdometerFromTesla(tokens.access_token, list)
+      const results = await syncOdometerFromTesla(tokens.access_token, list, (index, total) => {
+        setSyncProgress({ current: index, total })
+        setSyncStatus(`Syncing ${index} / ${total} vehicle(s)…`)
+      })
       const ok = results.filter((r) => r.odometer != null).length
       const anyTimeout = results.some((r) => r.timedOut)
       const err = results.find((r) => r.error)
@@ -138,8 +145,16 @@ export default function Vehicles() {
       setSyncStatus((e as Error).message)
     } finally {
       setSyncing(false)
+      setSyncProgress(null)
     }
   }
+
+  const syncStatusColor =
+    !syncStatus || syncStatus.startsWith('Syncing ')
+      ? 'text-slate-400'
+      : syncStatus.startsWith('Odometer synced')
+        ? 'text-[var(--success)]'
+        : 'text-[var(--warning)]'
 
   return (
     <div className="space-y-6">
@@ -170,10 +185,12 @@ export default function Vehicles() {
                 className="inline-flex items-center gap-2 rounded-lg bg-[var(--accent)]/20 px-4 py-2 text-sm font-medium text-[var(--accent)] disabled:opacity-50"
               >
                 <RefreshCw className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-                Sync from Tesla
+                {syncing && syncProgress
+                  ? `Syncing ${syncProgress.current}/${syncProgress.total}`
+                  : 'Sync from Tesla'}
               </button>
               {syncStatus && (
-                <p className={`text-sm ${syncStatus.startsWith('Odometer synced') ? 'text-[var(--success)]' : 'text-[var(--warning)]'}`}>
+                <p className={`text-sm ${syncStatusColor}`}>
                   {syncStatus}
                 </p>
               )}
