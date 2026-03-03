@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { format } from 'date-fns'
 import { Route, PlusCircle } from 'lucide-react'
 import { useAllTrips } from '@/hooks/useAllTrips'
-import { saveTripOffline } from '@/lib/db'
+import { saveTripOffline, deleteTripOffline } from '@/lib/db'
 import { randomUUID } from '@/lib/uuid'
 import type { Trip, TripPurpose } from '@/types'
 
@@ -17,6 +17,13 @@ export default function Trips() {
   const [addNotes, setAddNotes] = useState('')
   const [addBusy, setAddBusy] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  const [editingTrip, setEditingTrip] = useState<Trip | null>(null)
+  const [editDate, setEditDate] = useState('')
+  const [editMiles, setEditMiles] = useState('')
+  const [editPurpose, setEditPurpose] = useState<TripPurpose>('business')
+  const [editNotes, setEditNotes] = useState('')
+  const [editBusy, setEditBusy] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
   const { trips, loading, refresh } = useAllTrips()
 
   const handleAddTrip = async (e: React.FormEvent) => {
@@ -61,6 +68,63 @@ export default function Trips() {
     } finally {
       setAddBusy(false)
     }
+  }
+
+  const startEditTrip = (trip: Trip) => {
+    if (trip.source !== 'manual') return
+    setEditingTrip(trip)
+    setEditDate(trip.startTime.slice(0, 10))
+    setEditMiles(trip.miles.toString())
+    setEditPurpose(trip.purpose)
+    setEditNotes(trip.notes ?? '')
+    setEditError(null)
+  }
+
+  const handleEditTrip = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingTrip) return
+    const miles = Number(editMiles?.replace(/,/g, '.'))
+    if (!Number.isFinite(miles) || miles < 0) {
+      setEditError('Enter a valid mileage (e.g. 12.5)')
+      return
+    }
+    if (miles === 0) {
+      setEditError('Enter miles greater than 0')
+      return
+    }
+    setEditBusy(true)
+    setEditError(null)
+    try {
+      const date = editDate || editingTrip.startTime.slice(0, 10)
+      const now = new Date().toISOString()
+      const updated: Trip = {
+        ...editingTrip,
+        startTime: `${date}T00:00:00.000Z`,
+        endTime: `${date}T23:59:59.999Z`,
+        startOdometer: 0,
+        endOdometer: miles,
+        miles,
+        purpose: editPurpose,
+        notes: editNotes.trim() || undefined,
+        updatedAt: now,
+      }
+      await saveTripOffline(updated)
+      setEditingTrip(null)
+      await refresh()
+    } catch (err) {
+      setEditError((err as Error).message)
+    } finally {
+      setEditBusy(false)
+    }
+  }
+
+  const handleDeleteTrip = async (trip: Trip) => {
+    if (trip.source !== 'manual') return
+    await deleteTripOffline(trip.id)
+    if (editingTrip?.id === trip.id) {
+      setEditingTrip(null)
+    }
+    await refresh()
   }
 
   return (
@@ -151,6 +215,75 @@ export default function Trips() {
         )}
       </section>
 
+      {editingTrip && (
+        <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
+          <h3 className="mb-3 text-sm font-medium text-slate-300">Edit trip (manual)</h3>
+          <form onSubmit={handleEditTrip} className="space-y-3">
+            <div>
+              <label className="mb-1 block text-xs text-slate-400">Date</label>
+              <input
+                type="date"
+                value={editDate}
+                onChange={(e) => setEditDate(e.target.value)}
+                className="w-full rounded-lg border border-[var(--border)] bg-slate-900/50 px-3 py-2 text-sm text-slate-100"
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-400">Miles</label>
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="e.g. 12.5"
+                value={editMiles}
+                onChange={(e) => setEditMiles(e.target.value)}
+                className="w-full rounded-lg border border-[var(--border)] bg-slate-900/50 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-400">Purpose</label>
+              <select
+                value={editPurpose}
+                onChange={(e) => setEditPurpose(e.target.value as TripPurpose)}
+                className="w-full rounded-lg border border-[var(--border)] bg-slate-900/50 px-3 py-2 text-sm text-slate-100"
+              >
+                <option value="business">Business</option>
+                <option value="personal">Personal</option>
+                <option value="medical">Medical</option>
+                <option value="charity">Charity</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-slate-400">Notes (optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. Client visit, downtown"
+                value={editNotes}
+                onChange={(e) => setEditNotes(e.target.value)}
+                className="w-full rounded-lg border border-[var(--border)] bg-slate-900/50 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
+              />
+            </div>
+            {editError && <p className="text-xs text-red-400">{editError}</p>}
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={editBusy}
+                className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {editBusy ? 'Saving…' : 'Save changes'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingTrip(null)}
+                className="rounded-lg border border-[var(--border)] px-4 py-2 text-sm text-slate-400"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        </section>
+      )}
+
       <section>
         <h3 className="mb-2 text-sm font-medium text-slate-300">All trips</h3>
         <p className="mb-2 text-xs text-slate-500">Tesla: use &quot;Sync from Tesla&quot; on Vehicles. Add past or missed trips above.</p>
@@ -167,14 +300,37 @@ export default function Trips() {
             {trips.map((t) => (
               <li
                 key={t.id}
-                className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
+                className="flex flex-col gap-1 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3"
               >
-                <span className="text-sm text-slate-300">{format(new Date(t.startTime), 'MMM d, yyyy')}</span>
-                <span className="font-medium text-[var(--accent)]">{t.miles.toFixed(1)} mi</span>
-                <span className="text-sm text-slate-400">{t.purpose}</span>
-                <span className="text-xs text-slate-500">
-                  {t.source === 'tesla' ? 'Tesla' : t.source === 'manual' ? 'Manual' : t.source}
-                </span>
+                <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                  <span className="text-sm text-slate-300">{format(new Date(t.startTime), 'MMM d, yyyy')}</span>
+                  <span className="font-medium text-[var(--accent)]">{t.miles.toFixed(1)} mi</span>
+                  <span className="text-sm text-slate-400">{t.purpose}</span>
+                  <span className="text-xs text-slate-500">
+                    {t.source === 'tesla' ? 'Tesla' : t.source === 'manual' ? 'Manual' : t.source}
+                  </span>
+                </div>
+                {t.source === 'manual' && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    {t.notes && <span className="text-slate-500 truncate">Notes: {t.notes}</span>}
+                    <div className="ml-auto flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEditTrip(t)}
+                        className="rounded border border-[var(--border)] px-2 py-1 text-xs text-slate-300"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteTrip(t)}
+                        className="rounded border border-[var(--border)] px-2 py-1 text-xs text-red-300"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

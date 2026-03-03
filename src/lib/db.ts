@@ -57,6 +57,11 @@ export async function getOfflineTrips(): Promise<Trip[]> {
   return database.getAll('trips')
 }
 
+export async function deleteTripOffline(id: string): Promise<void> {
+  const database = await getDB()
+  await database.delete('trips', id)
+}
+
 export async function addPendingTrip(payload: Partial<Trip>): Promise<void> {
   const database = await getDB()
   const item: PendingTrip = {
