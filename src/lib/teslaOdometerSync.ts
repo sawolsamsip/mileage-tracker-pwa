@@ -47,7 +47,7 @@ export async function syncOdometerFromTesla(
   const today = dateOnly(new Date())
   const results: { vehicleId: string; odometer?: number; error?: string; timedOut?: boolean }[] = []
   for (let i = 0; i < vehicles.length; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, 2500))
+    if (i > 0) await new Promise((r) => setTimeout(r, 1000))
     const v = vehicles[i]
     const tid = v.id.replace(/^tesla-/, '')
     try {

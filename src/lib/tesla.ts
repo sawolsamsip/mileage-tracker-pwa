@@ -229,11 +229,21 @@ export async function getTeslaVehicleData(
   let timedOut = false
   const base = vehicleDataBase(vehicleId)
 
+  const SYNC_TIMEOUT_MS = 28_000
   const doVehicleData = async (url: string): Promise<{ ok: boolean; data: unknown; timedOut?: boolean }> => {
-    const r = await fetch(url, { headers })
-    if (r.status === 408) return { ok: false, data: null, timedOut: true }
-    if (!r.ok) throw new Error(`Tesla vehicle data: ${await r.text()}`)
-    return { ok: true, data: await r.json() as unknown }
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), SYNC_TIMEOUT_MS)
+    try {
+      const r = await fetch(url, { headers, signal: controller.signal })
+      if (r.status === 408) return { ok: false, data: null, timedOut: true }
+      if (!r.ok) throw new Error(`Tesla vehicle data: ${await r.text()}`)
+      return { ok: true, data: await r.json() as unknown }
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return { ok: false, data: null, timedOut: true }
+      throw err
+    } finally {
+      clearTimeout(timeoutId)
+    }
   }
 
   let res = await doVehicleData(`${base}/vehicle_data?endpoints=drive_state,vehicle_state`)

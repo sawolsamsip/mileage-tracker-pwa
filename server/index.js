@@ -19,6 +19,8 @@ const DATA_DIR = process.env.DATA_DIR || join(process.cwd(), 'data')
 const STATE_FILE = join(DATA_DIR, 'state.json')
 const SNAPSHOTS_FILE = join(DATA_DIR, 'snapshots.json')
 const PUSH_SUBSCRIPTIONS_FILE = join(DATA_DIR, 'push-subscriptions.json')
+const LAST_SYNC_FILE = join(DATA_DIR, 'last-sync.json')
+const SYNC_REQUEST_TIMEOUT_MS = 28_000
 
 const TESLA_FLEET_ORIGIN = 'https://fleet-api.prd.na.vn.cloud.tesla.com'
 const TESLA_TOKEN_URL = 'https://fleet-auth.prd.vn.cloud.tesla.com/oauth2/v3/token'
@@ -117,12 +119,24 @@ async function refreshAccessToken(refreshToken) {
 
 async function getTeslaOdometer(accessToken, vehicleId) {
   const url = `${TESLA_FLEET_ORIGIN}/api/1/vehicles/${vehicleId}/vehicle_data?endpoints=vehicle_state`
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } })
-  if (res.status === 408) return { timedOut: true }
-  if (!res.ok) throw new Error(`Tesla API: ${await res.text()}`)
-  const data = await res.json()
-  const odometer = extractOdometer(data)
-  return { odometer: odometer ?? undefined, timedOut: false }
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), SYNC_REQUEST_TIMEOUT_MS)
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal: controller.signal,
+    })
+    if (res.status === 408) return { timedOut: true }
+    if (!res.ok) throw new Error(`Tesla API: ${await res.text()}`)
+    const data = await res.json()
+    const odometer = extractOdometer(data)
+    return { odometer: odometer ?? undefined, timedOut: false }
+  } catch (e) {
+    if (e.name === 'AbortError') return { timedOut: true }
+    throw e
+  } finally {
+    clearTimeout(timeoutId)
+  }
 }
 
 function todayUTC() {
@@ -151,6 +165,7 @@ async function runMidnightSync() {
       await saveState(newState)
     } catch (e) {
       console.error('[midnight] Token refresh failed:', e.message)
+      await writeLastSync(null, 'token_refresh_failed')
       return
     }
   }
@@ -158,7 +173,7 @@ async function runMidnightSync() {
   const snapshots = await loadSnapshots()
   const byId = new Map(snapshots.map((s) => [s.id, s]))
   for (let i = 0; i < state.vehicles.length; i++) {
-    if (i > 0) await new Promise((r) => setTimeout(r, 2500))
+    if (i > 0) await new Promise((r) => setTimeout(r, 1000))
     const v = state.vehicles[i]
     const teslaId = (v.id || '').replace(/^tesla-/, '')
     if (!teslaId) continue
@@ -191,13 +206,62 @@ async function runMidnightSync() {
     }
   }
   await saveSnapshots(Array.from(byId.values()))
+  await writeLastSync(new Date().toISOString(), null)
+}
+
+async function writeLastSync(lastSuccessfulSync, lastError) {
+  await ensureDataDir()
+  await writeFile(
+    LAST_SYNC_FILE,
+    JSON.stringify({
+      lastSuccessfulSync: lastSuccessfulSync ?? undefined,
+      lastError: lastError ?? undefined,
+      updatedAt: new Date().toISOString(),
+    }, null, 2),
+    'utf8'
+  )
+}
+
+async function readLastSync() {
+  if (!existsSync(LAST_SYNC_FILE)) return { lastSuccessfulSync: null, lastError: null }
+  try {
+    const raw = await readFile(LAST_SYNC_FILE, 'utf8')
+    const o = JSON.parse(raw)
+    return {
+      lastSuccessfulSync: o.lastSuccessfulSync ?? null,
+      lastError: o.lastError ?? null,
+    }
+  } catch {
+    return { lastSuccessfulSync: null, lastError: null }
+  }
+}
+
+function getTeslaTokenStatus(state) {
+  if (!state?.refresh_token) return 'not_registered'
+  const expiresAt = state.expires_at ?? 0
+  if (Date.now() >= expiresAt - 60_000) return 'expired'
+  return 'ok'
 }
 
 const app = express()
 app.use(cors({ origin: true }))
 app.use(express.json())
 
-app.get('/api/health', (_, res) => res.json({ ok: true, service: 'mileage-midnight-sync' }))
+app.get('/api/health', async (_, res) => {
+  try {
+    const { lastSuccessfulSync } = await readLastSync()
+    const state = await loadState()
+    const teslaTokenStatus = getTeslaTokenStatus(state)
+    res.json({
+      ok: true,
+      service: 'mileage-midnight-sync',
+      lastSuccessfulMidnightSync: lastSuccessfulSync ?? null,
+      teslaTokenStatus,
+    })
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message })
+  }
+})
 
 /** Public config: client ID for OAuth (same value as TESLA_CLIENT_ID). */
 app.get('/api/tesla/config', (_, res) => {
@@ -452,13 +516,21 @@ if (STATIC_DIR) {
 
 await ensureDataDir()
 
-// Run every day at 00:00 server local time
+// Run twice daily: 00:00 and 12:00 server local time
 cron.schedule('0 0 * * *', async () => {
-  console.log('[cron] Running midnight sync')
+  console.log('[cron] Running scheduled sync (00:00)')
   try {
     await runMidnightSync()
   } catch (e) {
-    console.error('[cron] Midnight sync failed:', e)
+    console.error('[cron] Sync failed:', e)
+  }
+})
+cron.schedule('0 12 * * *', async () => {
+  console.log('[cron] Running scheduled sync (12:00)')
+  try {
+    await runMidnightSync()
+  } catch (e) {
+    console.error('[cron] Sync failed:', e)
   }
 })
 

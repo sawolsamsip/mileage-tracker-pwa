@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { format } from 'date-fns'
-import { Route, PlusCircle } from 'lucide-react'
+import { format, parseISO } from 'date-fns'
+import { Route, PlusCircle, AlertCircle } from 'lucide-react'
 import { useAllTrips } from '@/hooks/useAllTrips'
+import { useMissingDays } from '@/hooks/useMissingDays'
 import { saveTripOffline, deleteTripOffline } from '@/lib/db'
 import { randomUUID } from '@/lib/uuid'
 import type { Trip, TripPurpose } from '@/types'
@@ -25,6 +26,16 @@ export default function Trips() {
   const [editBusy, setEditBusy] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const { trips, loading, refresh } = useAllTrips()
+  const { missingDates, loading: missingLoading, refresh: refreshMissing } = useMissingDays(90)
+
+  const openAddForMissingDay = (date: string, purpose: TripPurpose) => {
+    setAddDate(date)
+    setAddPurpose(purpose)
+    setAddMiles('')
+    setAddNotes('')
+    setAddError(null)
+    setShowAddForm(true)
+  }
 
   const handleAddTrip = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -63,6 +74,7 @@ export default function Trips() {
       setAddNotes('')
       setShowAddForm(false)
       await refresh()
+      await refreshMissing()
     } catch (err) {
       setAddError((err as Error).message)
     } finally {
@@ -130,6 +142,44 @@ export default function Trips() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-semibold text-slate-100">Trips</h2>
+
+      {!missingLoading && missingDates.length > 0 && (
+        <section className="rounded-xl border border-[var(--warning)]/50 bg-[var(--warning)]/10 p-4">
+          <h3 className="mb-2 flex items-center gap-2 text-sm font-medium text-[var(--warning)]">
+            <AlertCircle className="h-4 w-4" />
+            Missing days (no Tesla snapshot)
+          </h3>
+          <p className="mb-3 text-xs text-slate-400">
+            Add miles for these days so your log is complete. Use &quot;Sync from Tesla&quot; on Vehicles first; if a day is still missing, add it below.
+          </p>
+          <ul className="space-y-2">
+            {missingDates.slice(0, 14).map((d) => (
+              <li key={d} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                <span className="text-slate-300">{format(parseISO(d), 'MMM d, yyyy')}</span>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openAddForMissingDay(d, 'business')}
+                    className="rounded border border-[var(--border)] bg-[var(--accent)]/20 px-2 py-1 text-xs text-[var(--accent)]"
+                  >
+                    Add business miles
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openAddForMissingDay(d, 'personal')}
+                    className="rounded border border-[var(--border)] px-2 py-1 text-xs text-slate-400"
+                  >
+                    Add personal miles
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+          {missingDates.length > 14 && (
+            <p className="mt-2 text-xs text-slate-500">+ {missingDates.length - 14} more. Add trips above to fill gaps.</p>
+          )}
+        </section>
+      )}
 
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
         <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-slate-300">
