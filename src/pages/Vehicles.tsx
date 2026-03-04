@@ -213,7 +213,7 @@ export default function Vehicles() {
                   </span>
                 )}
                 {todayMilesCache[v.id] != null && todayMilesCache[v.id] > 0 && (
-                  <span className="text-slate-400">Today: {todayMilesCache[v.id].toFixed(1)} mi</span>
+                  <span className="text-slate-400">Today: {Math.round(todayMilesCache[v.id])} mi</span>
                 )}
                 {loading && odometerCache[v.id] == null && v.provider === 'tesla' && (
                   <span className="text-xs text-slate-500">…</span>

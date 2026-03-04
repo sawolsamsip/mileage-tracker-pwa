@@ -19,7 +19,7 @@ export default function Dashboard() {
             <Route className="h-4 w-4" />
             <span className="text-sm">Today&apos;s miles</span>
           </div>
-          <p className="mt-1 text-2xl font-bold text-[var(--accent)]">{loading ? '…' : todayMiles.toFixed(1)} mi</p>
+          <p className="mt-1 text-2xl font-bold text-[var(--accent)]">{loading ? '…' : Math.round(todayMiles)} mi</p>
         </div>
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
           <div className="flex items-center gap-2 text-[var(--muted)]">
@@ -58,7 +58,7 @@ export default function Dashboard() {
             {recentTrips.map((t) => (
               <li key={t.id} className="flex justify-between text-sm">
                 <span className="text-slate-400">{format(new Date(t.startTime), 'MMM d')}</span>
-                <span className="text-[var(--accent)]">{t.miles.toFixed(1)} mi</span>
+                <span className="text-[var(--accent)]">{Math.round(t.miles)} mi</span>
               </li>
             ))}
           </ul>

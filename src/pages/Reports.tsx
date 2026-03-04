@@ -33,7 +33,12 @@ export default function Reports() {
   }[]>([])
   const [yearSelect, setYearSelect] = useState(new Date().getFullYear())
   const [savingBeginning, setSavingBeginning] = useState<string | null>(null)
+  const [beginningInputs, setBeginningInputs] = useState<Record<string, string>>({})
   const { trips: allTrips, loading } = useAllTrips()
+
+  useEffect(() => {
+    setBeginningInputs({})
+  }, [yearSelect])
 
   const loadYearSummary = useCallback(async () => {
     const vehicles = loadTeslaVehicles()
@@ -65,8 +70,8 @@ export default function Reports() {
   }, [loadYearSummary])
 
   const saveBeginningOdometer = async (vehicleId: string, value: string) => {
-    const num = Number(value?.replace(/,/g, '.'))
-    if (!Number.isFinite(num) || num < 0) return
+    const num = parseInt(String(value).trim(), 10)
+    if (Number.isNaN(num) || num < 0) return
     setSavingBeginning(vehicleId)
     await setCache(BEGINNING_ODOMETER_KEY(vehicleId, yearSelect), num)
     await loadYearSummary()
@@ -156,9 +161,10 @@ export default function Reports() {
                     <label className="block text-xs text-slate-500">Beginning (Jan 1)</label>
                     <input
                       type="text"
-                      inputMode="decimal"
+                      inputMode="numeric"
                       placeholder="e.g. 12500"
-                      defaultValue={r.beginning ?? ''}
+                      value={beginningInputs[r.vehicleId] ?? (r.beginning != null ? String(Math.round(r.beginning)) : '')}
+                      onChange={(e) => setBeginningInputs((prev) => ({ ...prev, [r.vehicleId]: e.target.value.replace(/\D/g, '') }))}
                       onBlur={(e) => saveBeginningOdometer(r.vehicleId, e.target.value)}
                       className="mt-0.5 w-full rounded border border-[var(--border)] bg-slate-900/50 px-2 py-1 text-slate-100"
                     />
@@ -166,7 +172,7 @@ export default function Reports() {
                   <div>
                     <label className="block text-xs text-slate-500">End (from sync)</label>
                     <p className="mt-0.5 text-slate-300">
-                      {r.endOdo != null ? `${r.endOdo.toLocaleString()} mi` : '—'}
+                      {r.endOdo != null ? `${r.endOdo.toLocaleString(undefined, { maximumFractionDigits: 0 })} mi` : '—'}
                     </p>
                     {r.lastDate && (
                       <p className="text-[0.65rem] text-slate-500">
@@ -177,7 +183,7 @@ export default function Reports() {
                   <div>
                     <label className="block text-xs text-slate-500">Total miles {yearSelect}</label>
                     <p className="mt-0.5 font-medium text-[var(--accent)]">
-                      {r.total != null ? `${r.total.toLocaleString()} mi` : '—'}
+                      {r.total != null ? `${r.total.toLocaleString(undefined, { maximumFractionDigits: 0 })} mi` : '—'}
                     </p>
                   </div>
                 </div>
@@ -190,7 +196,7 @@ export default function Reports() {
 
       <section className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4">
         <h3 className="mb-2 text-sm font-medium text-slate-300">EV tax incentive summary</h3>
-        <p className="mb-2 text-xs text-slate-500">Business miles YTD: {evSummary.businessMilesYTD.toFixed(1)}</p>
+        <p className="mb-2 text-xs text-slate-500">Business miles YTD: {Math.round(evSummary.businessMilesYTD)}</p>
         <p className="text-sm text-slate-400">{evSummary.suggestedAction}</p>
       </section>
     </div>

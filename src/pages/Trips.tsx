@@ -40,13 +40,9 @@ export default function Trips() {
 
   const handleAddTrip = async (e: React.FormEvent) => {
     e.preventDefault()
-    const miles = Number(addMiles?.replace(/,/g, '.'))
-    if (!Number.isFinite(miles) || miles < 0) {
-      setAddError('Enter a valid mileage (e.g. 12.5)')
-      return
-    }
-    if (miles === 0) {
-      setAddError('Enter miles greater than 0')
+    const miles = parseInt(addMiles?.trim() ?? '', 10)
+    if (Number.isNaN(miles) || miles <= 0) {
+      setAddError('Enter a whole number greater than 0 (e.g. 12)')
       return
     }
     setAddError(null)
@@ -87,7 +83,7 @@ export default function Trips() {
     if (trip.source !== 'manual') return
     setEditingTrip(trip)
     setEditDate(trip.startTime.slice(0, 10))
-    setEditMiles(trip.miles.toString())
+    setEditMiles(String(Math.round(trip.miles)))
     setEditPurpose(trip.purpose)
     setEditNotes(trip.notes ?? '')
     setEditError(null)
@@ -96,13 +92,9 @@ export default function Trips() {
   const handleEditTrip = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingTrip) return
-    const miles = Number(editMiles?.replace(/,/g, '.'))
-    if (!Number.isFinite(miles) || miles < 0) {
-      setEditError('Enter a valid mileage (e.g. 12.5)')
-      return
-    }
-    if (miles === 0) {
-      setEditError('Enter miles greater than 0')
+    const miles = parseInt(editMiles?.trim() ?? '', 10)
+    if (Number.isNaN(miles) || miles <= 0) {
+      setEditError('Enter a whole number greater than 0 (e.g. 12)')
       return
     }
     setEditBusy(true)
@@ -116,7 +108,7 @@ export default function Trips() {
         endTime: `${date}T23:59:59.999Z`,
         startOdometer: 0,
         endOdometer: miles,
-        miles,
+        miles: Math.round(miles),
         purpose: editPurpose,
         notes: editNotes.trim() || undefined,
         updatedAt: now,
@@ -215,10 +207,10 @@ export default function Trips() {
               <label className="mb-1 block text-xs text-slate-400">Miles</label>
               <input
                 type="text"
-                inputMode="decimal"
-                placeholder="e.g. 12.5"
+                inputMode="numeric"
+                placeholder="e.g. 12"
                 value={addMiles}
-                onChange={(e) => setAddMiles(e.target.value)}
+                onChange={(e) => setAddMiles(e.target.value.replace(/\D/g, ''))}
                 className="w-full rounded-lg border border-[var(--border)] bg-slate-900/50 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
               />
             </div>
@@ -284,10 +276,10 @@ export default function Trips() {
               <label className="mb-1 block text-xs text-slate-400">Miles</label>
               <input
                 type="text"
-                inputMode="decimal"
-                placeholder="e.g. 12.5"
+                inputMode="numeric"
+                placeholder="e.g. 12"
                 value={editMiles}
-                onChange={(e) => setEditMiles(e.target.value)}
+                onChange={(e) => setEditMiles(e.target.value.replace(/\D/g, ''))}
                 className="w-full rounded-lg border border-[var(--border)] bg-slate-900/50 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500"
               />
             </div>
@@ -355,7 +347,7 @@ export default function Trips() {
               >
                 <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
                   <span className="text-sm text-slate-300">{format(new Date(t.startTime), 'MMM d, yyyy')}</span>
-                  <span className="font-medium text-[var(--accent)]">{t.miles.toFixed(1)} mi</span>
+                  <span className="font-medium text-[var(--accent)]">{Math.round(t.miles)} mi</span>
                   <span className="text-sm text-slate-400">{t.purpose}</span>
                   <span className="text-xs text-slate-500">
                     {t.source === 'tesla' ? 'Tesla' : t.source === 'manual' ? 'Manual' : t.source}
