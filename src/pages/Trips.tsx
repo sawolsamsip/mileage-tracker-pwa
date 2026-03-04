@@ -26,7 +26,8 @@ export default function Trips() {
   const [editBusy, setEditBusy] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const { trips, loading, refresh } = useAllTrips()
-  const { missingDates, loading: missingLoading, refresh: refreshMissing } = useMissingDays(90)
+  const currentYear = new Date().getFullYear()
+  const { missingDates, loading: missingLoading, refresh: refreshMissing } = useMissingDays(currentYear)
 
   const openAddForMissingDay = (date: string, purpose: TripPurpose) => {
     setAddDate(date)

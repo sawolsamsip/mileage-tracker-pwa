@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { format, subMonths } from 'date-fns'
+import { format, subMonths, parseISO } from 'date-fns'
 import { FileText, Download, AlertTriangle, Gauge } from 'lucide-react'
 import { exportPDF, exportCSV, tripsToLogEntries, flagAudit } from '@/lib/exportLogs'
 import { getEVIncentiveSummary } from '@/lib/evTaxIncentive'
@@ -23,7 +23,14 @@ const BEGINNING_ODOMETER_KEY = (vehicleId: string, year: number) =>
 export default function Reports() {
   const [start] = useState(format(subMonths(new Date(), 1), 'yyyy-MM-dd'))
   const [end] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [yearRows, setYearRows] = useState<{ vehicleId: string; displayName: string; beginning: number | null; endOdo: number | null; total: number | null }[]>([])
+  const [yearRows, setYearRows] = useState<{
+    vehicleId: string
+    displayName: string
+    beginning: number | null
+    endOdo: number | null
+    lastDate: string | null
+    total: number | null
+  }[]>([])
   const [yearSelect, setYearSelect] = useState(new Date().getFullYear())
   const [savingBeginning, setSavingBeginning] = useState<string | null>(null)
   const { trips: allTrips, loading } = useAllTrips()
@@ -45,6 +52,7 @@ export default function Reports() {
           displayName: v.displayName,
           beginning,
           endOdo,
+          lastDate: endRow ? endRow.date : null,
           total,
         }
       })
@@ -157,7 +165,14 @@ export default function Reports() {
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500">End (from sync)</label>
-                    <p className="mt-0.5 text-slate-300">{r.endOdo != null ? `${r.endOdo.toLocaleString()} mi` : '—'}</p>
+                    <p className="mt-0.5 text-slate-300">
+                      {r.endOdo != null ? `${r.endOdo.toLocaleString()} mi` : '—'}
+                    </p>
+                    {r.lastDate && (
+                      <p className="text-[0.65rem] text-slate-500">
+                        as of {format(parseISO(r.lastDate), 'MMM d, yyyy')}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-xs text-slate-500">Total miles {yearSelect}</label>
